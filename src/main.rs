@@ -48,6 +48,10 @@ enum Args {
         #[structopt(parse(from_os_str))]
         path: PathBuf,
 
+        /// Path to the TOML file result to write 
+        #[structopt(parse(from_os_str))]
+        out: PathBuf,
+
         /// Query within the TOML data (e.g. `dependencies.serde`, `foo[0].bar`)
         query: String,
 
@@ -93,9 +97,10 @@ fn main() {
         Args::Get { path, query, opts } => get(&path, &query, &opts),
         Args::Set {
             path,
+            out, 
             query,
             value_str,
-        } => set(&path, &query, &value_str),
+        } => set(&path,&out, &query, &value_str),
     };
     result.unwrap_or_else(|err| {
         match err.downcast::<SilentError>() {
@@ -183,7 +188,7 @@ fn print_toml_fragment(doc: &Document, tpath: &[TpathSegment]) {
     print!("{}", doc);
 }
 
-fn set(path: &PathBuf, query: &str, value_str: &str) -> Result<(), Error> {
+fn set(path: &PathBuf, out: &PathBuf, query: &str, value_str: &str) -> Result<(), Error> {
     let tpath = parse_query_cli(query)?.0;
     let mut doc = read_parse(path)?;
 
@@ -229,8 +234,9 @@ fn set(path: &PathBuf, query: &str, value_str: &str) -> Result<(), Error> {
     }
     *item = value(value_str);
 
-    // TODO actually write back
-    print!("{}", doc);
+    fs::write(out, doc.to_string())
+    .map_err(|err| Error::new(err).context(format!("writing to {}", path.display())))?;
+
     Ok(())
 }
 
